@@ -69,6 +69,7 @@ public class UpdateManager {
     private boolean isAutoCheck;
     private boolean cancelUpdate = false;
     private int newVersionCode;
+    private String newVersionName;
     private String newFileName;
 
     private Handler mHandler = new Handler() {
@@ -124,17 +125,20 @@ public class UpdateManager {
                 }
                 try {
                     JSONObject jsonObject = new JSONObject(response);
-                    if (!jsonObject.has("versionCode") || !jsonObject.has("fileName")) {
+                    if (!jsonObject.has("tag_name") || !jsonObject.has("assets")) {
                         Toast.makeText(context, R.string.layout_version_no_new, Toast.LENGTH_SHORT).show();
                         LoadingDialog.close();
                         return;
                     }
-                    newVersionCode = jsonObject.getInt("versionCode");
-                    newFileName = jsonObject.getString("fileName");
-                    int versionCode = VersionUtil.getVersionCode(context);
+//                    newVersionCode = jsonObject.getInt("id");
+                    newVersionName = jsonObject.getString("tag_name");
+//                    VersionUtil.setVersionName(newVersionName);
+                    newFileName = "mytv-"+newVersionName+".apk";
+//                    int versionCode = VersionUtil.getVersionCode(context);
+                    String versionName = VersionUtil.getVersionName(context);
                     LoadingDialog.close();
-                    if (newVersionCode > versionCode) {
-                        showUpdateDialog(newFileName);
+                    if (!newVersionName.equals(versionName)) {
+                        showUpdateDialog(newVersionName);
                     } else {
                         if (!isAutoCheck) {
                             Toast.makeText(context, R.string.layout_version_no_new, Toast.LENGTH_SHORT).show();
@@ -160,25 +164,27 @@ public class UpdateManager {
      * 显示更新提醒对话框
      * @param fileName 新apk文件名称
      */
-    private void showUpdateDialog(final String fileName) {
-        ConfirmDialog dialog = new ConfirmDialog(context, new ConfirmDialog.OnClickListener() {
-            @Override
-            public void onConfirm() {
-                showDownloadDialog(fileName);
-            }
-        });
-        dialog.setTitle(R.string.note_confirm_title);
-        dialog.setContent(R.string.layout_version_new);
-        dialog.setConfirmText(R.string.layout_yes);
-        dialog.setCancelText(R.string.layout_no);
-        dialog.show();
+    private void showUpdateDialog(final String versionName) {
+        showDownloadDialog(versionName);
+//        ConfirmDialog dialog = new ConfirmDialog(context, new ConfirmDialog.OnClickListener() {
+        //
+//            @Override
+//            public void onConfirm() {
+//                showDownloadDialog(fileName);
+//            }
+//        });
+//        dialog.setTitle(R.string.note_confirm_title);
+//        dialog.setContent(R.string.layout_version_new);
+//        dialog.setConfirmText(R.string.layout_yes);
+//        dialog.setCancelText(R.string.layout_no);
+//        dialog.show();
     }
 
     /**
      * 显示apk下载进度
      * @param fileName 新apk文件名称
      */
-    private void showDownloadDialog(String fileName) {
+    private void showDownloadDialog(final String versionName) {
         Builder builder = new Builder(context);
 
         View view = LayoutInflater.from(context).inflate(R.layout.dialog_download, null);
@@ -203,14 +209,14 @@ public class UpdateManager {
         downloadDialog.show();
         downloadDialog.getWindow().setContentView(view);
 
-        downloadApk(fileName);
+        downloadApk(versionName);
     }
 
     /**
      * 后台下载apk文件
      * @param fileName 新apk文件名称
      */
-    private void downloadApk(String fileName) {
+    private void downloadApk(final String versionName) {
         ExecutorService executorService = Executors.newFixedThreadPool(1);
 
         Retrofit retrofit = new Retrofit.Builder()
@@ -218,7 +224,7 @@ public class UpdateManager {
                 .callbackExecutor(executorService)
                 .build();
 
-        String url = String.format(Constant.URL_APP_DOWNLOAD, fileName);
+        String url = String.format(Constant.URL_APP_DOWNLOAD, versionName, versionName);
         FileRequest fileRequest = retrofit.create(FileRequest.class);
         Call<ResponseBody> call = fileRequest.download(url);
         call.enqueue(new Callback<ResponseBody>() {
@@ -227,6 +233,7 @@ public class UpdateManager {
                 if (response.isSuccessful()) {
                     if (writeResponseBodyToDisk(response.body())) {
                         downloadDialog.dismiss();
+                        installApk();
                     } else {
                         mHandler.sendEmptyMessage(DOWNLOAD_ERROR);
                     }
@@ -320,12 +327,14 @@ public class UpdateManager {
         if (!apkFile.exists()) {
             return;
         }
-        Intent intent = new Intent(Intent.ACTION_VIEW);
+        Intent intent = null;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            intent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            Uri contentUri = FileProvider.getUriForFile(context, context.getPackageName() + ".fileprovider", apkFile);
+             intent =  new Intent(Intent.ACTION_INSTALL_PACKAGE );
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            Uri contentUri = FileProvider.getUriForFile(context, BuildConfig.APPLICATION_ID  + ".fileprovider", apkFile);
             intent.setDataAndType(contentUri, "application/vnd.android.package-archive");
         } else {
+             intent = new Intent(Intent.ACTION_VIEW);
             intent.setDataAndType(Uri.parse("file://" + apkFile.toString()), "application/vnd.android.package-archive");
         }
         context.startActivity(intent);

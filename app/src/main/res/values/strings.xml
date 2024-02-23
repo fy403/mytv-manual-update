@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">VersionDownload</string>
+    <string name="app_name">TV更新</string>
     <string name="note_permission_read">数据读取失败，请打开本应用读写数据权限</string>
     <string name="note_processing">处理中...</string>
     <string name="note_confirm_title">提示</string>
